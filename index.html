@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiple Objects Tracking on CesiumJS Globe</title>
+    <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.91/Build/Cesium/Widgets/widgets.css">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Helvetica', sans-serif; /* Use a suitable font */
+        }
+
+        #cesiumContainer {
+            height: 100%;
+        }
+
+        #searchContainer {
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.7); /* Adjust transparency as needed */
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            width: 30%;
+            box-sizing: border-box;
+        }
+
+        #airportInput {
+            height: 30px; /* Adjust the height as needed */
+            padding: 5px;
+            font-size: 14px;
+            border: 1px solid #ddd; /* Border color */
+            border-radius: 4px;
+        }
+
+        #trackButton {
+            height: 30px; /* Adjust the height as needed */
+            font-size: 14px;
+            padding: 5px 10px;
+            background-color: #4CAF50; /* Green */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #trackButton:hover {
+            background-color: #45a049; /* Darker green on hover */
+        }
+    </style>
+</head>
+<body>
+    <div id="searchContainer">
+        <label for="airportInput" style="color: white; margin-right: 10px;">Enter Airport IATA code:</label>
+        <input type="text" id="airportInput" placeholder="e.g., DFW">
+        <button id="trackButton" onclick="moveObjects()">Track Flights</button>
+    </div>
+    <div id="cesiumContainer"></div>
+
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.91/Build/Cesium/Cesium.js"></script>
+    <script>
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYzNjOThlZi1hNDQ2LTQxYzktOGMxNS0wZjA0NWUxOWEyZjUiLCJpZCI6MTg4MjM4LCJpYXQiOjE3MDQ1ODEyMjl9.ek7OBolIDh1ziOVl9kotU9oOo1-Pv35AlK5YFiTmxqg';
+
+        var viewer = new Cesium.Viewer('cesiumContainer', {
+            baseLayerPicker: false,
+            animation: false,
+            timeline: false,
+            geocoder: false,
+        });
+
+        function createEntityFromData(data) {
+    var lat = parseFloat(data.lat);
+    var lon = parseFloat(data.lng);
+    var direction = parseFloat(data.dir);
+    var arrivalIata = data.arr_iata;
+    var speed = parseFloat(data.speed);
+    var alt = parseFloat(data.alt);
+    var flight_icao = data.flight_icao;
+
+    var entity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        billboard: {
+            image: 'airplane5.png',
+            width: 50,
+            height: 50,
+            rotation: Cesium.Math.toRadians(90 - direction),
+        },
+    });
+
+    // Set properties for the entity
+    entity.arrivalIata = arrivalIata;
+    entity.speed = speed;
+    entity.alt = alt;
+    entity.flight_icao = flight_icao;
+
+    // Add a right-click event handler to display the information on right-click
+    viewer.screenSpaceEventHandler.setInputAction(function onRightClick(movement) {
+        var pickedObject = viewer.scene.pick(movement.endPosition);
+        if (Cesium.defined(pickedObject) && Cesium.defined(pickedObject.id) && pickedObject.id.arrivalIata) {
+            var infoString = `Flight: ${pickedObject.id.flight_icao}\nArrival IATA: ${pickedObject.id.arrivalIata}\nSpeed: ${pickedObject.id.speed} m/s\nAltitude: ${pickedObject.id.alt} meters`;
+
+            // Display the alert slightly lower on the screen
+            window.alert(infoString);
+        }
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+
+    // Set the name property to show information in the default Cesium viewer
+    entity.name = `Flight: ${flight_icao} | Destination: ${arrivalIata} | Current Alt: ${alt} m`;
+
+    return entity;
+}
+
+
+        function moveObjects() {
+            var airportInput = document.getElementById('airportInput');
+            var airportCode = airportInput.value.toUpperCase();
+
+            if (!airportCode) {
+                alert('Please enter an airport code.');
+                return;
+            }
+
+            fetch(`https://airlabs.co/api/v9/flights?dep_iata=${airportCode}&status=en-route&api_key=050ba393-3dd4-4896-bdeb-a8ebe4959304`)
+                .then(response => response.json())
+                .then(data => {
+                    var dataArray = data.response || [];
+                    viewer.entities.removeAll();
+
+                    dataArray.forEach(object => {
+                        createEntityFromData(object);
+                    });
+                })
+                .catch(error => console.error('Error fetching object data:', error));
+        }
+    </script>
+</body>
+</html>
