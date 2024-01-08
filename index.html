@@ -51,6 +51,32 @@
         #trackButton:hover {
             background-color: #45a049; /* Darker green on hover */
         }
+
+        #infoModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            z-index: 2;
+        }
+
+        #infoModalContent {
+            max-width: 300px;
+        }
+
+
+        @media screen and (max-width: 600px) {
+        /* Adjust the button height for smaller screens */
+        #trackButton {
+            height: 40px; /* Adjust the height for mobile view */
+        }
+        }
+
     </style>
 </head>
 <body>
