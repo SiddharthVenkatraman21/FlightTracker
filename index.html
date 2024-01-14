@@ -29,23 +29,34 @@
             box-sizing: border-box;
         }
 
-        #airportInput {
-            height: 30px; /* Adjust the height as needed */
+        .inputContainer {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        #airportInput,
+        #arrivalInput {
+            flex-grow: 1;
+            height: 30px;
             padding: 5px;
             font-size: 14px;
-            border: 1px solid #ddd; /* Border color */
+            border: 1px solid #ddd;
             border-radius: 4px;
+            margin-right: 10px;
         }
 
         #trackButton {
-            height: 30px; /* Adjust the height as needed */
-            font-size: 14px;
+            height: 40px;
+            font-size: 18px;
             padding: 5px 10px;
             background-color: #4CAF50; /* Green */
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            margin-top:5px;
+
         }
 
         #trackButton:hover {
@@ -69,26 +80,57 @@
             max-width: 300px;
         }
 
-
         @media screen and (max-width: 600px) {
-        /* Adjust the button height for smaller screens */
-        #trackButton {
-            height: 40px; /* Adjust the height for mobile view */
-        }
+            /* Adjust the button height for smaller screens */
+            #trackButton {
+                height: 40px; /* Adjust the height for mobile view */
+            }
         }
 
     </style>
 </head>
 <body>
     <div id="searchContainer">
-        <label for="airportInput" style="color: white; margin-right: 10px;">Enter Airport IATA code:</label>
-        <input type="text" id="airportInput" placeholder="e.g., DFW">
+        <div class="inputContainer">
+            <label for="airportInput" style="color: white; margin-right: 10px;">Enter Departure Airport IATA code:</label>
+            <input type="text" id="airportInput" placeholder="e.g., DFW">
+        </div>
+    
+        <!-- Add the following lines for arrival IATA input -->
+        <div class="inputContainer">
+            <label for="arrivalInput" style="color: white; margin-right: 10px;"> Enter Arrival Airport IATA code:</label>
+            <input type="text" id="arrivalInput" placeholder="Provide Departure and/or Arrival">
+        </div>
+    
+        <div class="inputContainer">
+            <label for="togglePolyline" style="color: white; margin-right: 10px;">Show Estimated Flight Paths:</label>
+            <input type="checkbox" id="togglePolyline" checked>
+        </div>
+    
+        <!-- Move the Track Flights button below the toggle switch -->
         <button id="trackButton" onclick="moveObjects()">Track Flights</button>
     </div>
+    
     <div id="cesiumContainer"></div>
 
+    
+
+
+
+
+
+
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.91/Build/Cesium/Cesium.js"></script>
-    <script>
+
+
+
+
+    <script type="module">
+
+        import airportCoordinates from './airportCoordinates.js';
+
+        window.airportCoordinates = airportCoordinates;
+
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYzNjOThlZi1hNDQ2LTQxYzktOGMxNS0wZjA0NWUxOWEyZjUiLCJpZCI6MTg4MjM4LCJpYXQiOjE3MDQ1ODEyMjl9.ek7OBolIDh1ziOVl9kotU9oOo1-Pv35AlK5YFiTmxqg';
 
         var viewer = new Cesium.Viewer('cesiumContainer', {
@@ -98,14 +140,16 @@
             geocoder: false,
         });
 
-        function createEntityFromData(data) {
+    function createEntityFromData(data, index) {
     var lat = parseFloat(data.lat);
     var lon = parseFloat(data.lng);
     var direction = parseFloat(data.dir);
     var arrivalIata = data.arr_iata;
+    var departureIata = data.dep_iata;
     var speed = parseFloat(data.speed);
     var alt = parseFloat(data.alt);
-    var flight_icao = data.flight_icao;
+    var flight_iata = data.flight_iata;
+
 
     var entity = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat),
@@ -117,17 +161,54 @@
         },
     });
 
+
+
+
+
+
+        const airportCoordinatesData = window.airportCoordinates;
+
+        var departureCoordinates = airportCoordinatesData[data.dep_icao];
+        var arrivalCoordinates = airportCoordinatesData[data.arr_icao];
+
+        if (!departureCoordinates || !arrivalCoordinates) {
+            console.error('Invalid departure or arrival airport code.');
+            return;
+        }
+
+        var polylineId = 'Flight Path: ' + flight_iata;
+
+    // Create a polyline to represent the flight path
+    var polyline = viewer.entities.add({
+        id: polylineId,  // Set the unique ID
+        polyline: {
+            positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                departureCoordinates.lon, departureCoordinates.lat, 0,
+                arrivalCoordinates.lon, arrivalCoordinates.lat, 0
+            ]),
+            width: 2,
+            material: Cesium.Color.BLACK,
+            show: true, // Initially show the polyline
+        },
+    });
+
+        // Set properties for the polyline
+        polyline.departureIata = data.dep_iata;
+        polyline.arrivalIata = data.arr_iata;
+
+
     // Set properties for the entity
     entity.arrivalIata = arrivalIata;
+    entity.departureIata = departureIata;
     entity.speed = speed;
     entity.alt = alt;
-    entity.flight_icao = flight_icao;
+    entity.flight_iata = flight_iata;
 
     // Add a right-click event handler to display the information on right-click
     viewer.screenSpaceEventHandler.setInputAction(function onRightClick(movement) {
         var pickedObject = viewer.scene.pick(movement.endPosition);
         if (Cesium.defined(pickedObject) && Cesium.defined(pickedObject.id) && pickedObject.id.arrivalIata) {
-            var infoString = `Flight: ${pickedObject.id.flight_icao}\nArrival IATA: ${pickedObject.id.arrivalIata}\nSpeed: ${pickedObject.id.speed} m/s\nAltitude: ${pickedObject.id.alt} meters`;
+            var infoString = `Flight: ${pickedObject.id.flight_iata}\n${pickedObject.id.departureIata} to ${pickedObject.id.arrivalIata}\nSpeed: ${pickedObject.id.speed} m/s\nAltitude: ${pickedObject.id.alt} meters`;
 
             // Display the alert slightly lower on the screen
             window.alert(infoString);
@@ -135,33 +216,83 @@
     }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
 
     // Set the name property to show information in the default Cesium viewer
-    entity.name = `Flight: ${flight_icao} | Destination: ${arrivalIata} | Current Alt: ${alt} m`;
+    entity.name = `Flight: ${flight_iata} | ${departureIata} to ${arrivalIata} | Current Alt: ${alt} m`;
 
-    return entity;
+    return {
+        entity: entity,
+        polylineId: polylineId, // Return the polylineId along with the entity
+    };
 }
 
 
-        function moveObjects() {
-            var airportInput = document.getElementById('airportInput');
-            var airportCode = airportInput.value.toUpperCase();
+window.moveObjects = function () {
+    var departureInput = document.getElementById('airportInput');
+    var arrivalInput = document.getElementById('arrivalInput'); // Add this line
+    var departureCode = departureInput.value.toUpperCase();
+    var arrivalCode = arrivalInput.value.toUpperCase(); // Add this line
 
-            if (!airportCode) {
-                alert('Please enter an airport code.');
-                return;
-            }
+    var togglePolyline = document.getElementById('togglePolyline');
+    var showPolyline = togglePolyline.checked;
 
-            fetch(`https://airlabs.co/api/v9/flights?dep_iata=${airportCode}&status=en-route&api_key=050ba393-3dd4-4896-bdeb-a8ebe4959304`)
-                .then(response => response.json())
-                .then(data => {
-                    var dataArray = data.response || [];
-                    viewer.entities.removeAll();
+    if ((!departureCode) & (!arrivalCode)) {
+        alert('Please enter a departure or arrival airport code.');
+        return;
+    }
 
-                    dataArray.forEach(object => {
-                        createEntityFromData(object);
-                    });
-                })
-                .catch(error => console.error('Error fetching object data:', error));
-        }
+    var apiUrl = `https://airlabs.co/api/v9/flights?status=en-route&api_key=050ba393-3dd4-4896-bdeb-a8ebe4959304`;
+
+    if (departureCode) {
+        apiUrl += `&dep_iata=${departureCode}`;
+    }
+
+    if (arrivalCode) {
+        apiUrl += `&arr_iata=${arrivalCode}`;
+    }
+
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            var dataArray = data.response || [];
+            viewer.entities.removeAll();
+
+            dataArray.forEach((object,index) => {
+                var result = createEntityFromData(object, index);
+                var entity = result.entity;
+                var polylineId = result.polylineId;
+
+                // Access the polyline using viewer.entities.getById
+                var polyline = viewer.entities.getById(polylineId);
+
+                // Show/hide the polyline based on the toggle switch state
+                if (polyline) {
+                    polyline.show = showPolyline;
+                }
+
+            const airportCoordinatesData = window.airportCoordinates;
+
+                var departureCoordinates = airportCoordinatesData[object.dep_icao];
+                var arrivalCoordinates = airportCoordinatesData[object.arr_icao];
+
+                    polyline.polyline.positions = Cesium.Cartesian3.fromDegreesArrayHeights([
+                        departureCoordinates.lon, departureCoordinates.lat, 0,
+                        object.lng, object.lat, object.alt, // Use the current plane location
+                        arrivalCoordinates.lon, arrivalCoordinates.lat, 0
+                    ]);
+            });
+        })
+        .catch(error => console.error('Error fetching object data:', error));
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+        // Now you can use airportCoordinates as needed
+        console.log(window.airportCoordinates);
+
+        // Add an event listener to the #trackButton element
+        document.getElementById('trackButton').addEventListener('click', moveObjects);
+    });
     </script>
+
+<script src="./airportCoordinates.js" defer></script>
+
 </body>
 </html>
